@@ -52,6 +52,11 @@ def generate_name(naive_name=None):
     else:
         return naive_name + '-' + name
 
+def f1_score(precision, recall):
+    # 计算F1分数
+    f1_score = 2 * (precision * recall) / (precision + recall)
+    return f1_score
+
 if __name__ == '__main__':
     # from objprint import op
     # file_path = 'SARs/default_training_setting.py'
