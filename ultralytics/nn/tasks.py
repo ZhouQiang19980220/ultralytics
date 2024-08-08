@@ -293,6 +293,8 @@ class DetectionModel(BaseModel):
     def __init__(self, cfg="yolov8n.yaml", ch=3, nc=None, verbose=True):  # model, input channels, number of classes
         """Initialize the YOLOv8 detection model with the given config and parameters."""
         super().__init__()
+        # dict_keys(['nc', 'scales', 'backbone', 'head', 'scale', 'yaml_file', 'ch'])
+        # ch represents the input channels, eg., 3
         self.yaml = cfg if isinstance(cfg, dict) else yaml_model_load(cfg)  # cfg dict
         if self.yaml["backbone"][0][2] == "Silence":
             LOGGER.warning(
@@ -907,6 +909,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
                 with contextlib.suppress(ValueError):
                     args[j] = locals()[a] if a in locals() else ast.literal_eval(a)
 
+        # 根据模型的大小(n, s, m, l, x)计算深度
         n = n_ = max(round(n * depth), 1) if n > 1 else n  # depth gain
         if m in {
             Classify,
@@ -939,8 +942,8 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             PSA,
             SCDown,
             C2fCIB,
-        }:
-            c1, c2 = ch[f], args[0]
+        }:  # 括号里是一些自定义模块
+            c1, c2 = ch[f], args[0]     # c1 和 c2 分别代表当前层的输入和输出通道
             if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
                 c2 = make_divisible(min(c2, max_channels) * width, 8)
             if m is C2fAttn:

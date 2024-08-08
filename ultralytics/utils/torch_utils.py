@@ -425,7 +425,13 @@ def scale_img(img, ratio=1.0, same_shape=False, gs=32):
 
 
 def make_divisible(x, divisor):
-    """Returns nearest x divisible by divisor."""
+    """Returns nearest x divisible by divisor.
+        返回最接近 x 且能被 divisor 整除的数。
+        例如: x=17, divisor = 5
+        那么x / divisor = 3.4
+        math.ceil(3.4) = 4
+        最终返回 20
+    """
     if isinstance(divisor, torch.Tensor):
         divisor = int(divisor.max())  # to int
     return math.ceil(x / divisor) * divisor
