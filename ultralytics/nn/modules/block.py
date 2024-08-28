@@ -4,6 +4,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import time
+import numpy as np
+import random
+from typing import List
 
 from ultralytics.utils.torch_utils import fuse_conv_and_bn
 
@@ -46,6 +50,9 @@ __all__ = (
     "Attention",
     "PSA",
     "SCDown",
+    "SparseC3", 
+    "Add", 
+    "SplitChannel", 
 )
 
 
@@ -957,3 +964,100 @@ class SCDown(nn.Module):
             (torch.Tensor): Output tensor after applying the SCDown module.
         """
         return self.cv2(self.cv1(x))
+
+
+def random_sample_9_from_25(seed = None):
+    """
+    从25个数中随机选择9个
+    """
+    if seed is None:
+        # 将随机数种子设置当前的时间
+        seed = int(time.time())
+    elif isinstance(seed, torch.Tensor):
+        seed = seed.item()
+    random.seed(seed)
+
+    numbers = list(range(25))
+    random_numbers = random.sample(numbers, 9)
+    if 12 not in random_numbers:
+        random_numbers[0] = 12
+    return random_numbers
+
+
+def get_mask_from_1d_index(_1d_indexs: List[int]):
+    mask = np.zeros((5, 5), dtype=int)  # 创建一个初始为0的5x5掩码
+
+    for number in _1d_indexs:
+        assert 12 in _1d_indexs
+        row = number // 5  # 计算行索引
+        col = number % 5  # 计算列索引
+        mask[row, col] = 1  # 将对应位置上的元素设为1
+    assert mask[2, 2] == 1
+    mask = torch.from_numpy(mask)
+    return mask
+
+
+def get_random_mask(seed):
+    return get_mask_from_1d_index(random_sample_9_from_25(seed))
+
+
+
+class Mask5x5Conv2d(nn.Conv2d):
+    def __init__(self, in_channels: int, bias: bool = True) -> None:
+        super().__init__(in_channels, in_channels, kernel_size=5, stride=1, padding=2, dilation=1, groups=in_channels, bias=bias)
+        # self.weight.data.shape = (in_channels, 1, 5, 5)
+        nn.init.kaiming_normal_(self.weight)
+
+        masks = []
+        for i in range(in_channels):
+            masks.append(get_random_mask(seed=torch.sum(self.weight.data)))
+        masks = torch.stack(masks, dim = 0)
+        masks = masks.view(in_channels, 1, 5, 5)
+        self.masks = masks
+
+    def forward(self, x):
+        self.weight.data = torch.mul(self.weight.data, self.masks.to(x.device))
+        return super().forward(x)
+    
+
+
+class SparseC3(C3):
+    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5):
+        super().__init__(c1, c2, n, shortcut, g, e)
+        self.mask_conv = Mask5x5Conv2d(c1)
+
+    def forward(self, x):
+        branch1 = self.m(self.cv1(x))
+        branch2 = self.cv2(self.mask_conv(x))
+        return self.cv3(torch.cat((branch1, branch2), 1))
+
+
+class SplitChannel(nn.Module):
+    def __init__(self, in_channel, out_channel, start: float) -> None:
+        super().__init__()
+        self.in_channel = in_channel
+        self.out_channel = out_channel
+        self.start_idx = int(start * in_channel)
+        self.stop_idx = self.start_idx + self.out_channel
+
+        if self.stop_idx > in_channel:
+            self.conv = nn.Conv2d(in_channels=in_channel-self.start_idx, out_channels=self.out_channel, kernel_size=1)
+        else:
+            self.conv = None
+    def forward(self, x: torch.Tensor):
+        B, C, H, W = x.shape
+        assert C == self.in_channel
+        out = x[:, self.start_idx: self.stop_idx, :, :]
+
+        if self.conv is not None:
+            out = self.conv(out)
+
+        return out
+    
+
+class Add(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        return torch.add(*x)

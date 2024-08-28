@@ -53,6 +53,9 @@ from .block import (
     RepVGGDW,
     ResNetLayer,
     SCDown,
+    SparseC3, 
+    Add, 
+    SplitChannel, 
 )
 from .conv import (
     CBAM,
@@ -150,4 +153,7 @@ __all__ = (
     "Attention",
     "PSA",
     "SCDown",
+    "SparseC3", 
+    "Add",
+    "SplitChannel", 
 )

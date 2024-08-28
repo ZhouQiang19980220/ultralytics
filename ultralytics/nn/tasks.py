@@ -55,6 +55,11 @@ from ultralytics.nn.modules import (
     Segment,
     WorldDetect,
     v10Detect,
+    SparseC3, 
+    Add, 
+    TransformerBlock, 
+    SplitChannel, 
+    
 )
 from ultralytics.utils import DEFAULT_CFG_DICT, DEFAULT_CFG_KEYS, LOGGER, colorstr, emojis, yaml_load
 from ultralytics.utils.checks import check_requirements, check_suffix, check_yaml
@@ -942,6 +947,9 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             PSA,
             SCDown,
             C2fCIB,
+            SparseC3,   # 增加关系 SparseC3 的解析
+            TransformerBlock, 
+            SplitChannel, 
         }:  # 括号里是一些自定义模块
             c1, c2 = ch[f], args[0]     # c1 和 c2 分别代表当前层的输入和输出通道
             if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
@@ -982,6 +990,10 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             args = [c1, c2, *args[1:]]
         elif m is CBFuse:
             c2 = ch[f[-1]]
+        elif m is nn.AvgPool2d:
+            c2 = ch[f]
+        elif m is Add:
+            c2 = ch[f[0]]
         else:
             c2 = ch[f]
 
